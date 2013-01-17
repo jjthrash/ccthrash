@@ -1,4 +1,15 @@
 --[[
+USAGE:
+1. Fill the turtle with one item each of those you don't want mined (e.g. stone, dirt, gravel).
+   Coal is not coal ore, so putting coal as fuel won't cause problems.
+2. Make sure there is enough fuel to cover 1000? moves ((char)coal is 80 moves, so 13 or so.
+   This is just a guess at the moment. The turtle will auto-refuel as needed. If it runs out of
+   fuel, it will attempt to return and ask for more.
+3. When it's done mining, it will spit everything but one each of the junk items out the back.
+   Place a chest there (or RP2 transposer, or another turtle) if you want it more organized.
+4. Then it will move forward 3 and start over. When done it will move back to the chest and spit
+   everything out again.
+
 outline of algoritm:
 - mine
     - dig down
@@ -13,9 +24,9 @@ outline of algoritm:
 - etc
 --]]
 
-local args = { ... }
+local REQUIRED_FUEL_LEVEL = 1000
 
-stack = {}
+local stack = {}
 function stack.new()
   return { last = 0 }
 end
@@ -39,6 +50,11 @@ function stack.isEmpty(s)
   return s.last < 1
 end
 
+--[[
+XXX: A mover is something that can do normal motions, but
+along with other function. E.g. undoable movement, fuel-sensitive
+movement, tracking current position, etc.
+--]]
 local undoable = {}
 function undoable.down(moveStack)
   turtle.down()
@@ -97,42 +113,54 @@ function undoable.unwind(moveStack)
   end
 end
 
-local items = {}
-items.stone          = 1
-items.grassBlock     = 2
-items.dirt           = 3
-items.cobblestone    = 4
-items.bedrock        = 7
-items.lava           = 10
-items.stationaryLava = 11
-items.sand           = 12
-items.gravel         = 13
+function isInteresting(slotsWithUninterestingItems)
+  if not turtle.detect() then
+    return false
+  end
 
-function isEndOfLine(item)
-  return item == items.bedrock ||
-         item == items.lava    ||
-         item == items.stationaryLava
+  for i = 1,table.getn(slotsWithUninterestingItems) do
+    turtle.select(slotsWithUninterestingItems[i])
+    if turtle.compare() then
+      return false
+    end
+  end
+
+  return true
 end
 
-function isInteresting(item)
-  return item != items.stone      &&
-         item != items.grassBlock &&
-         item != items.dirt       &&
-         item != items.cobblestone
+-- Assume all slots with something in them contain uninteresting
+-- items and collect the indices of those slots
+function markUninterestingItems()
+  local result = {}
+
+  for i=1,16 do
+    if turtle.getItemCount(i) > 0 then
+      table.insert(result, i)
+    end
+  end
+
+  return result
 end
 
-function mine()
+--[[
+1. Do a mining run down.
+2. Deliver items to a chest.
+3. Return to start of last mining run.
+--]]
+function mine(slotsWithUninterestingItems)
   local mainMoveStack = stack.new()
 
+  local endOfLine = false
+
   while true do
-    if isEndOfLine(turtle.detectDown()) then
+    if endOfLine then
       undoable.unwind(mainMoveStack)
       break
     else
-      turtle.digDown()
+      endOfLine = turtle.detectDown() and not turtle.digDown()
       undoable.down(mainMoveStack)
 
-      mineInterestingItems()
+      mineInterestingItems(slotsWithUninterestingItems)
     end
   end
 
@@ -142,31 +170,73 @@ end
 
 -- on a single level, check for interesting stuff around and get it.
 -- in the end, the bot will face the same direction it started in
-function mineInterestingItems()
+function mineInterestingItems(slotsWithUninterestingItems)
   for i=1,4 do
     turtle.turnRight()
-    if isInteresting(NEED API CALL TO DETECT ITEM ID HERE) then
-      branchForward()
+    if isInteresting(slotsWithUninterestingItems) then
+      branchForward(slotsWithUninterestingItems)
     end
   end
 end
 
 -- mine forward, recursively getting interesting items
 -- then undo all motions, returning to starting location&orientation
-function branchForward()
+function branchForward(slotsWithUninterestingItems)
   turtle.dig()
   turtle.forward()
-  mineInterestingItems()
-  turtle.backward()
+  mineInterestingItems(slotsWithUninterestingItems)
+  turtle.back()
+end
+
+function tableContains(table, element)
+  for e in table do
+    if e == element then
+      return true
+    end
+  end
+
+  return false
 end
 
 -- go backward until I find a chest or am blocked
 -- if chest, deposit everything but my coal
 -- otherwise, just spit stuff out to my right or left, whichever is empty
-function unload()
+function unload(slotsWithUninterestingItems)
   local moveStack = stack.new()
   undoable.aboutFace(moveStack)
-  --TODO
+  while not turtle.detect() do
+    undoable.forward(moveStack)
+  end
+
+  shell.exit()
+  --TODO selective unloading
+
+  undoable.unwind(moveStack)
 end
+
+function enoughFuelForMiningRun()
+  return turtle.getFuelLevel() >= REQUIRED_FUEL_LEVEL
+end
+
+function go()
+  uninterestingItems = markUninterestingItems()
+
+  macroMoveStack = stack.new()
+
+  while enoughFuelForMiningRun() do --TODO while nobody's telling us to stop? E.g. rednet signal
+    mine(uninterestingItems)
+
+    --undoable.forward(macroMoveStack)
+    --undoable.forward(macroMoveStack)
+    --undoable.forward(macroMoveStack)
+  end
+
+  undoable.unwind(macroMoveStack)
+end
+
+--local args = { ... }
+
+go()
+
 
 -- vim:ft=lua
