@@ -1,0 +1,79 @@
+--[[
+Plant a sapling, apply bonemeal, chop down, deliver to storage behind
+Keeps going until it runs out of supplies
+
+Requires fueling ahead of time
+--]]
+
+local slots = {}
+slots.fuel     = 1
+slots.saplings = 2
+slots.bonemeal = 3
+
+function downUntilObstacle()
+  while not turtle.detectDown() do
+    turtle.down()
+  end
+end
+
+function log()
+  while turtle.detect() do
+    turtle.dig()
+    turtle.digUp()
+    turtle.up()
+    firstTime = false
+  end
+
+  downUntilObstacle()
+end
+
+function plantSapling()
+  turtle.select(slots.saplings)
+  turtle.place()
+end
+
+function stillHaveSupplies()
+  return turtle.getItemCount(slots.saplings) > 0 and
+         turtle.getItemCount(slots.bonemeal) > 0
+end
+
+function deployBonemeal()
+  turtle.select(slots.bonemeal)
+  turtle.place()
+end
+
+function deliverWood()
+  turtle.turnRight()
+  turtle.turnRight()
+  for i=4,16 do
+    turtle.select(i)
+    turtle.drop()
+  end
+  turtle.turnRight()
+  turtle.turnRight()
+end
+
+-- attempt to pick up saplings lying around
+function slurp()
+  for i=1,4 do
+    turtle.suck()
+    turtle.turnRight()
+  end
+end
+
+function go()
+  while stillHaveSupplies() do
+    plantSapling()
+    deployBonemeal()
+    log()
+    deliverWood()
+  end
+
+  slurp()
+
+  print("No more bonemeal!")
+end
+
+go()
+
+-- vim:ft=lua
