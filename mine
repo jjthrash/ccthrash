@@ -1,0 +1,172 @@
+--[[
+outline of algoritm:
+- mine
+    - dig down
+    - examine each direction, if interesting, follow the deposit, return
+    - if bedrock, done
+    - if return to top, deposit everything into chest, come back, keep going
+- back up until chest
+- deposit everything into chest
+- return
+- go forward 2 or 3
+- mine
+- etc
+--]]
+
+local args = { ... }
+
+stack = {}
+function stack.new()
+  return { last = 0 }
+end
+
+function stack.push(s, value)
+  local last = s.last + 1
+  s.last = last
+  s[last] = value
+end
+
+function stack.pop(s)
+  local last = s.last
+  if stack.isEmpty(s) then error("list is empty") end
+  local value = s[last]
+  s[last] = nil         -- to allow garbage collection
+  s.last = last - 1
+  return value
+end
+
+function stack.isEmpty(s)
+  return s.last < 1
+end
+
+local undoable = {}
+function undoable.down(moveStack)
+  turtle.down()
+  stack.push(moveStack, 'd')
+end
+
+function undoable.up(moveStack)
+  turtle.up()
+  stack.push(moveStack, 'u')
+end
+
+function undoable.turnRight(moveStack)
+  turtle.turnRight()
+  stack.push(moveStack, 'r')
+end
+
+function undoable.turnLeft(moveStack)
+  turtle.turnLeft()
+  stack.push(moveStack, 'l')
+end
+
+function undoable.forward(moveStack)
+  turtle.forward()
+  stack.push(moveStack, 'f')
+end
+
+function undoable.back(moveStack)
+  turtle.back()
+  stack.push(moveStack, 'b')
+end
+
+function undoable.aboutFace(moveStack)
+  undoable.turnLeft(moveStack)
+  undoable.turnLeft(moveStack)
+end
+
+function undoable.undo(motion)
+  if motion == 'd' then
+    turtle.up()
+  elseif motion == 'u' then
+    turtle.down()
+  elseif motion == 'r' then
+    turtle.turnLeft()
+  elseif motion == 'l' then
+    turtle.turnRight()
+  elseif motion == 'f' then
+    turtle.back()
+  elseif motion == 'b' then
+    turtle.forward()
+  end
+end
+
+function undoable.unwind(moveStack)
+  while not stack.isEmpty(moveStack) do
+    undoable.undo(stack.pop(moveStack))
+  end
+end
+
+local items = {}
+items.stone          = 1
+items.grassBlock     = 2
+items.dirt           = 3
+items.cobblestone    = 4
+items.bedrock        = 7
+items.lava           = 10
+items.stationaryLava = 11
+items.sand           = 12
+items.gravel         = 13
+
+function isEndOfLine(item)
+  return item == items.bedrock ||
+         item == items.lava    ||
+         item == items.stationaryLava
+end
+
+function isInteresting(item)
+  return item != items.stone      &&
+         item != items.grassBlock &&
+         item != items.dirt       &&
+         item != items.cobblestone
+end
+
+function mine()
+  local mainMoveStack = stack.new()
+
+  while true do
+    if isEndOfLine(turtle.detectDown()) then
+      undoable.unwind(mainMoveStack)
+      break
+    else
+      turtle.digDown()
+      undoable.down(mainMoveStack)
+
+      mineInterestingItems()
+    end
+  end
+
+  -- should be where we started mining
+  unload()
+end
+
+-- on a single level, check for interesting stuff around and get it.
+-- in the end, the bot will face the same direction it started in
+function mineInterestingItems()
+  for i=1,4 do
+    turtle.turnRight()
+    if isInteresting(NEED API CALL TO DETECT ITEM ID HERE) then
+      branchForward()
+    end
+  end
+end
+
+-- mine forward, recursively getting interesting items
+-- then undo all motions, returning to starting location&orientation
+function branchForward()
+  turtle.dig()
+  turtle.forward()
+  mineInterestingItems()
+  turtle.backward()
+end
+
+-- go backward until I find a chest or am blocked
+-- if chest, deposit everything but my coal
+-- otherwise, just spit stuff out to my right or left, whichever is empty
+function unload()
+  local moveStack = stack.new()
+  undoable.aboutFace(moveStack)
+  --TODO
+end
+
+-- vim:ft=lua
