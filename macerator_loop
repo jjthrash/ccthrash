@@ -1,0 +1,11 @@
+function pulse(side)
+end
+
+while true do
+  if redstone.getInput('top') then
+    --pulse('back')
+    pulse('right')
+  end
+end
+
+-- vim:ft=lua
