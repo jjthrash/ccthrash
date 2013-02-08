@@ -1,4 +1,7 @@
 function pulse(side)
+  redstone.setOutput(side, true)
+  sleep(0.1)
+  redstone.setOutput(side, false)
 end
 
 while true do
@@ -6,6 +9,7 @@ while true do
     --pulse('back')
     pulse('right')
   end
+  sleep(1.0)
 end
 
 -- vim:ft=lua
